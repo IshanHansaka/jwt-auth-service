@@ -1,4 +1,4 @@
-package com.ishan.security.jwt_auth_service.service.auth;
+package com.ishan.security.jwt_auth_service.service;
 
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
