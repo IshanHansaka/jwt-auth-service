@@ -1,4 +1,4 @@
-package com.ishan.security.enums;
+package com.ishan.security.jwt_auth_service.enums;
 
 public enum UserRole {
     ROLE_USER,
