@@ -2,30 +2,43 @@ package com.ishan.security.jwt_auth_service.model;
 
 import java.time.LocalDateTime;
 
-import org.hibernate.annotations.CreationTimestamp;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.ishan.security.jwt_auth_service.enums.UserRole;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
 
 @Entity
-@Table(name = "users") // user is a reserved keyword in SQL, so we use users
-@Data
+@EntityListeners(AuditingEntityListener.class)
+@Table(name = "users", // user is a reserved keyword in SQL, so we use users
+        indexes = {
+                @Index(name = "idx_users_email", columnList = "email"),
+                @Index(name = "idx_users_deleted_at", columnList = "deleted_at")
+        })
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@ToString(exclude = "password")
 public class User {
 
     @Id
@@ -33,26 +46,27 @@ public class User {
     @Column(name = "user_id")
     private Long userId;
 
-    @Column(unique = true, nullable = false)
+    @Column(unique = true, nullable = false, length = 150, updatable = false)
     private String email;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 100)
     private String name;
 
     @JsonIgnore
+    @Column(nullable = false)
     private String password;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 30)
     @Builder.Default
-    private UserRole role = UserRole.ROLE_USER;; // default role
+    private UserRole role = UserRole.ROLE_USER; // default role
 
     @Column(name = "email_verified", nullable = false)
     @Builder.Default
-    private Boolean isVerified = false;
+    private boolean verified = false;
 
-    @CreationTimestamp
-    @Column(name = "created_at")
+    @CreatedDate
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "last_login")
@@ -60,4 +74,19 @@ public class User {
 
     @Column(name = "last_verification_email_sent")
     private LocalDateTime lastVerificationEmailSent;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean enabled = true;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean accountLocked = false;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @Version
+    private Long version;
+
 }
