@@ -2,15 +2,11 @@ package com.ishan.security.jwt_auth_service.model;
 
 import java.time.LocalDateTime;
 
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.ishan.security.jwt_auth_service.enums.UserRole;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
@@ -25,7 +21,6 @@ import lombok.Setter;
 import lombok.ToString;
 
 @Entity
-@EntityListeners(AuditingEntityListener.class)
 @Table(name = "users") // user is a reserved keyword in SQL, so we use users
 @Getter
 @Setter
@@ -60,7 +55,6 @@ public class User {
         private boolean verified = false;
 
         @Column(name = "created_at", updatable = false)
-        @CreatedDate
         private LocalDateTime createdAt;
 
         @Column(name = "last_login")

@@ -1,5 +1,7 @@
 package com.ishan.security.jwt_auth_service.util;
 
+import java.time.LocalDateTime;
+
 import org.springframework.stereotype.Component;
 
 import com.ishan.security.jwt_auth_service.dto.user.UserRegisterDTO;
@@ -16,6 +18,7 @@ public class UserMapper {
                 .email(normalizeEmail(dto.getEmail()))
                 .name(dto.getName())
                 .password(encodedPassword)
+                .createdAt(LocalDateTime.now())
                 .build();
     }
 
