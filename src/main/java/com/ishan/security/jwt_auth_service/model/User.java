@@ -28,65 +28,47 @@ import lombok.ToString;
 
 @Entity
 @EntityListeners(AuditingEntityListener.class)
-@Table(name = "users", // user is a reserved keyword in SQL, so we use users
-        indexes = {
-                @Index(name = "idx_users_email", columnList = "email"),
-                @Index(name = "idx_users_deleted_at", columnList = "deleted_at")
-        })
+@Table(name = "users") // user is a reserved keyword in SQL, so we use users
 @Getter
 @Setter
+@ToString(exclude = "password")
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@ToString(exclude = "password")
 public class User {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "user_id")
-    private Long userId;
+        @Id
+        @GeneratedValue(strategy = GenerationType.IDENTITY)
+        @Column(name = "user_id")
+        private Long userId;
 
-    @Column(unique = true, nullable = false, length = 150, updatable = false)
-    private String email;
+        @Column(unique = true, nullable = false, length = 150, updatable = false)
+        private String email;
 
-    @Column(nullable = false, length = 100)
-    private String name;
+        @Column(nullable = false, length = 100)
+        private String name;
 
-    @JsonIgnore
-    @Column(nullable = false)
-    private String password;
+        @JsonIgnore
+        @Column(nullable = false)
+        private String password;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 30)
-    @Builder.Default
-    private UserRole role = UserRole.ROLE_USER; // default role
+        @Enumerated(EnumType.STRING)
+        @Column(nullable = false, length = 30)
+        @Builder.Default
+        private UserRole role = UserRole.ROLE_USER; // default role
 
-    @Column(name = "email_verified", nullable = false)
-    @Builder.Default
-    private boolean verified = false;
+        @Column(name = "email_verified", nullable = false)
+        @Builder.Default
+        private boolean verified = false;
 
-    @CreatedDate
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
+        @CreatedDate
+        @Column(name = "created_at", updatable = false)
+        private LocalDateTime createdAt;
 
-    @Column(name = "last_login")
-    private LocalDateTime lastLogin;
+        @Column(name = "last_login")
+        private LocalDateTime lastLogin;
 
-    @Column(name = "last_verification_email_sent")
-    private LocalDateTime lastVerificationEmailSent;
-
-    @Column(nullable = false)
-    @Builder.Default
-    private boolean enabled = true;
-
-    @Column(nullable = false)
-    @Builder.Default
-    private boolean accountLocked = false;
-
-    @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
-
-    @Version
-    private Long version;
+        @Column(name = "last_verification_email_sent")
+        private LocalDateTime lastVerificationEmailSent;
 
 }
