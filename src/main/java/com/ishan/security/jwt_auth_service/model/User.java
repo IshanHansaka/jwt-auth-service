@@ -16,9 +16,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Index;
 import jakarta.persistence.Table;
-import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -61,8 +59,8 @@ public class User {
         @Builder.Default
         private boolean verified = false;
 
-        @CreatedDate
         @Column(name = "created_at", updatable = false)
+        @CreatedDate
         private LocalDateTime createdAt;
 
         @Column(name = "last_login")
