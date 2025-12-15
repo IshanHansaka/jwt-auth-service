@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.ishan.security.jwt_auth_service.dto.response.ApiResponseDTO;
 
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletRequest;
 
 @RestControllerAdvice
@@ -100,6 +101,23 @@ public class GlobalExceptionHandler {
         ApiResponseDTO<Object> response = ApiResponseDTO.builder()
                 .status("error")
                 .message("Invalid email or password")
+                .path(request.getRequestURI())
+                .timestamp(Instant.now())
+                .data(null)
+                .build();
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    // Handle Jwt invildations
+    @ExceptionHandler(JwtException.class)
+    public ResponseEntity<ApiResponseDTO<Object>> handleJwtException(
+        JwtException ex,
+        HttpServletRequest request) {
+
+        ApiResponseDTO<Object> response = ApiResponseDTO.builder()
+                .status("error")
+                .message("Invalid or expired token")
                 .path(request.getRequestURI())
                 .timestamp(Instant.now())
                 .data(null)
