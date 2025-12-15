@@ -29,4 +29,7 @@ public class UserPrincipal implements UserDetails {
         return user.getEmail();
     }
 
+    public User getUser() {
+        return user;
+    }
 }
