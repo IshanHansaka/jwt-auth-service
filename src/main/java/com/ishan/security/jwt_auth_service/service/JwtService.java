@@ -35,9 +35,9 @@ public class JwtService {
     /**
      * Generate an access token (short-lived)
      */
-    public String generateAccessToken(UserDetails userDetails, Map<String, Object> extraClaims) {
+    public String generateAccessToken(UserDetails userDetails) {
 
-        Map<String, Object> claims = new HashMap<>(extraClaims);
+        Map<String, Object> claims = new HashMap<>();
         claims.put("role", extractRole(userDetails));
         claims.put("token_type", "access");
 
@@ -48,7 +48,6 @@ public class JwtService {
                 .expiration(new Date(System.currentTimeMillis() + accessTokenDurationMs))
                 .id(UUID.randomUUID().toString())
                 .issuer("jwt-auth-service")
-                .audience().add("web-client").and()
                 .signWith(getSignKey())
                 .header().add("typ", "JWT")
                 .and()
@@ -71,7 +70,6 @@ public class JwtService {
                 .expiration(new Date(System.currentTimeMillis() + refreshTokenDurationMs))
                 .id(UUID.randomUUID().toString())
                 .issuer("jwt-auth-service")
-                .audience().add("web-client").and()
                 .signWith(getSignKey())
                 .header().add("typ", "JWT")
                 .and()
@@ -91,5 +89,13 @@ public class JwtService {
         String roleWithoutPrefix = role.startsWith("ROLE_") ? role.substring(5) : role;
 
         return roleWithoutPrefix;
+    }
+
+    public long getAccessTokenDurationMs() {
+        return accessTokenDurationMs;
+    }
+
+    public long getRefreshTokenDurationMs() {
+        return refreshTokenDurationMs;
     }
 }
