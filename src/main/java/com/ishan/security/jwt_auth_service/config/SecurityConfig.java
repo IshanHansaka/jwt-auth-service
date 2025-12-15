@@ -50,7 +50,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
 
-                // Handle unauthenticated (401) and unauthorized (403) responses
+                // Handle unauthorized (401) and forbidden (403) responses
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, authEx) -> {
                             res.setContentType("application/json");
