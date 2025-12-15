@@ -13,16 +13,14 @@ import lombok.NonNull;
 public class UserMapper {
 
     @NonNull
-    public User toEntity(@NonNull UserRegisterDTO dto, @NonNull String encodedPassword) {
+    public User toEntity(@NonNull UserRegisterDTO dto, @NonNull String encodedPassword,
+            @NonNull String normalizedEmail) {
         return User.builder()
-                .email(normalizeEmail(dto.getEmail()))
+                .email(normalizedEmail)
                 .name(dto.getName())
                 .password(encodedPassword)
                 .createdAt(LocalDateTime.now())
                 .build();
     }
 
-    private String normalizeEmail(String email) {
-        return email.trim().toLowerCase();
-    }
 }
