@@ -5,15 +5,16 @@ import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.ishan.security.jwt_auth_service.dto.response.ApiResponseDTO;
 
 import jakarta.servlet.http.HttpServletRequest;
 
-@ControllerAdvice
+@RestControllerAdvice
 public class GlobalExceptionHandler {
 
     // Handle validation errors (@Valid)
@@ -71,5 +72,39 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    // Handle email not verify exception
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<ApiResponseDTO<Object>> handleEmailNotVerified(
+            EmailNotVerifiedException ex,
+            HttpServletRequest request) {
+
+        ApiResponseDTO<Object> response = ApiResponseDTO.builder()
+                .status("error")
+                .message(ex.getMessage())
+                .timestamp(Instant.now())
+                .path(request.getRequestURI())
+                .data(null)
+                .build();
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    // Handle bad credentials
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ApiResponseDTO<Object>> handleBadCredentials(
+            BadCredentialsException ex,
+            HttpServletRequest request) {
+
+        ApiResponseDTO<Object> response = ApiResponseDTO.builder()
+                .status("error")
+                .message("Invalid email or password")
+                .path(request.getRequestURI())
+                .timestamp(Instant.now())
+                .data(null)
+                .build();
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 }
