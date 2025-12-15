@@ -12,9 +12,11 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ishan.security.jwt_auth_service.dto.response.ApiResponseDTO;
+import com.ishan.security.jwt_auth_service.filter.JwtAuthenticationFilter;
 import com.ishan.security.jwt_auth_service.service.CustomUserDetailsService;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -27,7 +29,7 @@ public class SecurityConfig {
 
     private final CustomUserDetailsService customUserDetailsService;
     private final ObjectMapper objectMapper;
-
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
     /**
      * Main Security Filter Chain
      */
@@ -82,6 +84,9 @@ public class SecurityConfig {
 
                 // Stateless session
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                // Add JwtAuthenticationFilter before UsernamePasswordAuthenticationFilter
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
 
                 .build();
     }
