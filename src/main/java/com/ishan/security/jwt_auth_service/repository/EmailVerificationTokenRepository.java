@@ -26,4 +26,12 @@ public interface EmailVerificationTokenRepository extends JpaRepository<EmailVer
             """)
     void updateUsed(@Param("tokenId") Long tokenId,
             @Param("used") boolean used);
+
+    @Transactional
+    @Modifying
+    @Query("""
+                DELETE FROM EmailVerificationToken e
+                WHERE e.expiresAt < CURRENT_TIMESTAMP
+            """)
+    int deleteExpired();
 }
