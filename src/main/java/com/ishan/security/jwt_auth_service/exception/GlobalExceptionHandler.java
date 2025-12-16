@@ -100,7 +100,7 @@ public class GlobalExceptionHandler {
 
         ApiResponseDTO<Object> response = ApiResponseDTO.builder()
                 .status("error")
-                .message("Invalid email or password")
+                .message(ex.getMessage())
                 .path(request.getRequestURI())
                 .timestamp(Instant.now())
                 .data(null)
