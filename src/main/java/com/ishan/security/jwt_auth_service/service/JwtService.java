@@ -32,9 +32,6 @@ public class JwtService {
     @Value("${jwt.refresh.expiration}")
     private long refreshTokenDurationMs;
 
-    @Value("${jwt.email_verification.expiration}")
-    private long emailVerificationTokenDurationMs;
-
     /**
      * Generate an access token (short-lived)
      */
