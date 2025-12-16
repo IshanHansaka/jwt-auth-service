@@ -5,6 +5,7 @@ import java.util.Objects;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -16,8 +17,10 @@ import com.ishan.security.jwt_auth_service.dto.user.UserLoginDTO;
 import com.ishan.security.jwt_auth_service.dto.user.UserRegisterDTO;
 import com.ishan.security.jwt_auth_service.exception.EmailAlreadyExistsException;
 import com.ishan.security.jwt_auth_service.exception.EmailNotVerifiedException;
+import com.ishan.security.jwt_auth_service.model.EmailVerificationToken;
 import com.ishan.security.jwt_auth_service.model.User;
 import com.ishan.security.jwt_auth_service.model.UserPrincipal;
+import com.ishan.security.jwt_auth_service.repository.EmailVerificationTokenRepository;
 import com.ishan.security.jwt_auth_service.repository.UserRepository;
 import com.ishan.security.jwt_auth_service.util.UserMapper;
 
@@ -33,6 +36,8 @@ public class AuthService {
     private final UserMapper userMapper;
     private final AuthenticationManager authManager;
     private final JwtService jwtService;
+    private final EmailVerificationService emailVerificationService;
+    private final EmailVerificationTokenRepository tokenRepository;
 
     @Transactional
     public RegisterResponseDTO registerUser(UserRegisterDTO userRegisterDTO) {
@@ -51,6 +56,8 @@ public class AuthService {
         } catch (DataIntegrityViolationException e) {
             throw new EmailAlreadyExistsException(user.getEmail());
         }
+
+        emailVerificationService.sendVerificationEmail(user);
 
         return new RegisterResponseDTO(user.getEmail(), user.getName());
     }
@@ -76,6 +83,25 @@ public class AuthService {
         String refreshToken = jwtService.generateRefreshToken(userPrincipal);
 
         return new JwtTokensDTO(accessToken, refreshToken);
+    }
+
+    @Transactional
+    public void verifyEmail(String token) {
+
+        EmailVerificationToken verificationToken = tokenRepository.findByToken(token)
+                .orElseThrow(() -> new BadCredentialsException("Invalid token"));
+
+        if (verificationToken.isUsed()) {
+            throw new BadCredentialsException("Token already used");
+        }
+
+        if (verificationToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new BadCredentialsException("Token expired");
+        }
+
+        User user = verificationToken.getUser();
+        userRepository.updateVerified(user.getUserId(), true);
+        tokenRepository.updateUsed(verificationToken.getTokenId(), true);
     }
 
     private String normalizeEmail(String email) {

@@ -9,9 +9,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.ishan.security.jwt_auth_service.dto.response.ApiResponseDTO;
@@ -83,5 +85,22 @@ public class AuthController {
                 return ResponseEntity.ok()
                                 .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
                                 .body(apiResponse);
+        }
+
+        @GetMapping("/verify-email")
+        public ResponseEntity<ApiResponseDTO<Void>> verifyEmail(@RequestParam String token,
+                        HttpServletRequest request) {
+
+                authService.verifyEmail(token);
+
+                ApiResponseDTO<Void> apiResponse = ApiResponseDTO.<Void>builder()
+                                .status("success")
+                                .message("Email verified successfully")
+                                .data(null)
+                                .timestamp(Instant.now())
+                                .path(request.getRequestURI())
+                                .build();
+
+                return ResponseEntity.status(HttpStatus.OK).body(apiResponse);
         }
 }

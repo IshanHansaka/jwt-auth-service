@@ -29,4 +29,24 @@ public interface UserRepository extends JpaRepository<User, Long> {
             """)
     void updateLastLogin(@Param("userId") Long userId,
             @Param("lastLogin") LocalDateTime lastLogin);
+
+    @Transactional
+    @Modifying
+    @Query("""
+                UPDATE User u
+                SET u.verified = :verified
+                WHERE u.userId = :userId
+            """)
+    void updateVerified(@Param("userId") Long userId,
+            @Param("verified") boolean verified);
+
+    @Transactional
+    @Modifying
+    @Query("""
+                UPDATE User u
+                SET u.lastVerificationEmailSent = :lastVerificationEmailSent
+                WHERE u.userId = :userId
+            """)
+    void updateLastVerificationEmailSent(@Param("userId") Long userId,
+            @Param("lastVerificationEmailSent") LocalDateTime lastVerificationEmailSent);
 }
