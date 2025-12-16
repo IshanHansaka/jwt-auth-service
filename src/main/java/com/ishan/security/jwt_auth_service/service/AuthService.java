@@ -8,15 +8,21 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.ishan.security.jwt_auth_service.dto.request.ResendEmailRequestDTO;
 import com.ishan.security.jwt_auth_service.dto.response.JwtTokensDTO;
+import com.ishan.security.jwt_auth_service.dto.response.LoginResponseDTO;
 import com.ishan.security.jwt_auth_service.dto.response.RegisterResponseDTO;
 import com.ishan.security.jwt_auth_service.dto.user.UserLoginDTO;
 import com.ishan.security.jwt_auth_service.dto.user.UserRegisterDTO;
 import com.ishan.security.jwt_auth_service.exception.EmailAlreadyExistsException;
 import com.ishan.security.jwt_auth_service.exception.EmailNotVerifiedException;
+import com.ishan.security.jwt_auth_service.exception.InvalidRefreshTokenException;
+import com.ishan.security.jwt_auth_service.exception.ResendEmailCooldownException;
+import com.ishan.security.jwt_auth_service.exception.UserNotFoundException;
 import com.ishan.security.jwt_auth_service.model.EmailVerificationToken;
 import com.ishan.security.jwt_auth_service.model.User;
 import com.ishan.security.jwt_auth_service.model.UserPrincipal;
@@ -38,6 +44,9 @@ public class AuthService {
     private final JwtService jwtService;
     private final EmailVerificationService emailVerificationService;
     private final EmailVerificationTokenRepository tokenRepository;
+    private final CustomUserDetailsService customUserDetailsService;
+
+    private static final int COOLDOWN_MINUTES = 5;
 
     @Transactional
     public RegisterResponseDTO registerUser(UserRegisterDTO userRegisterDTO) {
@@ -102,6 +111,50 @@ public class AuthService {
         User user = verificationToken.getUser();
         userRepository.updateVerified(user.getUserId(), true);
         tokenRepository.updateUsed(verificationToken.getTokenId(), true);
+    }
+
+    public LoginResponseDTO getRefreshAccessToken(String refreshToken) {
+
+        String username = jwtService.extractUsername(refreshToken);
+        UserDetails userDetails = customUserDetailsService.loadUserByUsername(username);
+
+        if (!jwtService.validateRefreshToken(refreshToken, userDetails)) {
+            throw new InvalidRefreshTokenException("Invalid or expired refresh token");
+        }
+
+        String newAccessToken = jwtService.generateAccessToken(userDetails);
+
+        LoginResponseDTO loginResponse = new LoginResponseDTO();
+        loginResponse.setAccessToken(newAccessToken);
+
+        return loginResponse;
+    }
+
+    public void resendEmail(ResendEmailRequestDTO resendEmailRequestDTO) {
+
+        String email = normalizeEmail(resendEmailRequestDTO.getEmail());
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
+
+        if (user.isVerified()) {
+            throw new IllegalStateException("User is already verified");
+        }
+
+        // Cooldown check
+        if (user.getLastVerificationEmailSent() != null &&
+                user.getLastVerificationEmailSent()
+                        .isAfter(java.time.LocalDateTime.now().minusMinutes(COOLDOWN_MINUTES))) {
+            long waitMinutes = COOLDOWN_MINUTES - java.time.Duration.between(
+                    user.getLastVerificationEmailSent(), java.time.LocalDateTime.now()).toMinutes();
+            throw new ResendEmailCooldownException("Please wait " + waitMinutes + " minutes before requesting again");
+        }
+
+        emailVerificationService.sendVerificationEmail(user);
+
+        // Update last sent timestamp
+        user.setLastVerificationEmailSent(java.time.LocalDateTime.now());
+        userRepository.save(user);
+
     }
 
     private String normalizeEmail(String email) {

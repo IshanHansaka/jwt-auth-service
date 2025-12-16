@@ -1,7 +1,9 @@
 package com.ishan.security.jwt_auth_service.service;
 
+import java.time.Year;
 import java.util.Objects;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,12 @@ public class EmailService {
     private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
 
+    @Value("${app.email.verification.expiry-minutes}")
+    private int expiryMinutes;
+
+    @Value("${spring.application.name}")
+    private String appName;
+
     public void sendVerificationEmail(
             @NonNull String to,
             @NonNull String name,
@@ -37,6 +45,9 @@ public class EmailService {
             Context context = new Context();
             context.setVariable("name", name);
             context.setVariable("verificationUrl", verificationUrl);
+            context.setVariable("expiryMinutes", expiryMinutes);
+            context.setVariable("appName", appName);
+            context.setVariable("year", Year.now().getValue());
 
             // Generate HTML content from template
             String htmlContent = Objects.requireNonNull(

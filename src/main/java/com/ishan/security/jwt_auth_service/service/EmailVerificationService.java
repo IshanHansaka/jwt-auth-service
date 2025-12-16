@@ -41,11 +41,7 @@ public class EmailVerificationService {
         tokenRepository.save(verificationToken);
         String verificationUrl = backendUrl + "/api/v1/auth/verify-email?token=" + token;
 
-        try {
-            emailService.sendVerificationEmail(user.getEmail(), user.getName(), verificationUrl);
-            userRepository.updateLastVerificationEmailSent(user.getUserId(), LocalDateTime.now());
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to send verification email: " + e.getMessage(), e);
-        }
+        emailService.sendVerificationEmail(user.getEmail(), user.getName(), verificationUrl);
+        userRepository.updateLastVerificationEmailSent(user.getUserId(), LocalDateTime.now());
     }
 }

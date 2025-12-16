@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.ishan.security.jwt_auth_service.dto.request.ResendEmailRequestDTO;
 import com.ishan.security.jwt_auth_service.dto.response.ApiResponseDTO;
 import com.ishan.security.jwt_auth_service.dto.response.JwtTokensDTO;
 import com.ishan.security.jwt_auth_service.dto.response.LoginResponseDTO;
@@ -101,6 +103,93 @@ public class AuthController {
                                 .path(request.getRequestURI())
                                 .build();
 
-                return ResponseEntity.status(HttpStatus.OK).body(apiResponse);
+                return ResponseEntity.ok(apiResponse);
+        }
+
+        @PostMapping("/refresh")
+        public ResponseEntity<ApiResponseDTO<LoginResponseDTO>> refreshToken(
+                        @CookieValue(name = "refreshToken", required = false) String refreshToken,
+                        HttpServletRequest request) {
+
+                if (refreshToken == null || refreshToken.isEmpty()) {
+                        ApiResponseDTO<LoginResponseDTO> response = ApiResponseDTO.<LoginResponseDTO>builder()
+                                        .status("error")
+                                        .message("No active session found or already logged out")
+                                        .data(null)
+                                        .timestamp(Instant.now())
+                                        .path(request.getRequestURI())
+                                        .build();
+
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+                }
+
+                LoginResponseDTO loginResponse = authService.getRefreshAccessToken(refreshToken);
+
+                ApiResponseDTO<LoginResponseDTO> apiResponse = ApiResponseDTO.<LoginResponseDTO>builder()
+                                .status("success")
+                                .message("Token refreshed successfully")
+                                .data(loginResponse)
+                                .timestamp(Instant.now())
+                                .path(request.getRequestURI())
+                                .build();
+
+                return ResponseEntity.ok(apiResponse);
+        }
+
+        @PostMapping("/logout")
+        public ResponseEntity<ApiResponseDTO<Object>> logout(
+                        @CookieValue(name = "refreshToken", required = false) String refreshToken,
+                        HttpServletRequest request) {
+
+                if (refreshToken == null || refreshToken.isEmpty()) {
+                        ApiResponseDTO<Object> response = ApiResponseDTO.builder()
+                                        .status("error")
+                                        .message("No active session found or already logged out")
+                                        .data(null)
+                                        .timestamp(Instant.now())
+                                        .path(request.getRequestURI())
+                                        .build();
+
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+                }
+
+                // Clear the refresh token cookie
+                ResponseCookie deleteCookie = ResponseCookie.from("refreshToken", "")
+                                .httpOnly(true)
+                                .secure(true)
+                                .path("/api/v1/auth/refresh")
+                                .maxAge(0)
+                                .sameSite("Strict")
+                                .build();
+
+                ApiResponseDTO<Object> apiResponse = ApiResponseDTO.builder()
+                                .status("success")
+                                .message("Logged out successfully")
+                                .data(null)
+                                .timestamp(Instant.now())
+                                .path(request.getRequestURI())
+                                .build();
+
+                return ResponseEntity.ok()
+                                .header(HttpHeaders.SET_COOKIE, deleteCookie.toString())
+                                .body(apiResponse);
+        }
+
+        @PostMapping("/resend-email")
+        public ResponseEntity<ApiResponseDTO<Object>> resendEmail(
+                        @Valid @RequestBody ResendEmailRequestDTO resendEmailRequestDTO,
+                        HttpServletRequest httpRequest) {
+
+                authService.resendEmail(resendEmailRequestDTO);
+
+                ApiResponseDTO<Object> response = ApiResponseDTO.builder()
+                                .status("success")
+                                .message("Verification email resent successfully")
+                                .timestamp(Instant.now())
+                                .path(httpRequest.getRequestURI())
+                                .data(null)
+                                .build();
+
+                return ResponseEntity.ok(response);
         }
 }
