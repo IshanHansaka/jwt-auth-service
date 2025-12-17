@@ -1,8 +1,10 @@
 package com.ishan.security.jwt_auth_service.service;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -12,22 +14,22 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import com.ishan.security.jwt_auth_service.dto.request.ResendEmailRequestDTO;
 import com.ishan.security.jwt_auth_service.dto.response.JwtTokensDTO;
 import com.ishan.security.jwt_auth_service.dto.response.LoginResponseDTO;
 import com.ishan.security.jwt_auth_service.dto.response.RegisterResponseDTO;
-import com.ishan.security.jwt_auth_service.dto.user.UserLoginDTO;
-import com.ishan.security.jwt_auth_service.dto.user.UserRegisterDTO;
 import com.ishan.security.jwt_auth_service.exception.EmailAlreadyExistsException;
 import com.ishan.security.jwt_auth_service.exception.EmailNotVerifiedException;
 import com.ishan.security.jwt_auth_service.exception.InvalidRefreshTokenException;
 import com.ishan.security.jwt_auth_service.exception.ResendEmailCooldownException;
 import com.ishan.security.jwt_auth_service.exception.UserNotFoundException;
 import com.ishan.security.jwt_auth_service.model.EmailVerificationToken;
+import com.ishan.security.jwt_auth_service.model.PasswordResetToken;
 import com.ishan.security.jwt_auth_service.model.User;
 import com.ishan.security.jwt_auth_service.model.UserPrincipal;
 import com.ishan.security.jwt_auth_service.repository.EmailVerificationTokenRepository;
+import com.ishan.security.jwt_auth_service.repository.PasswordResetTokenRepository;
 import com.ishan.security.jwt_auth_service.repository.UserRepository;
+import com.ishan.security.jwt_auth_service.util.EmailNormalizer;
 import com.ishan.security.jwt_auth_service.util.UserMapper;
 
 import jakarta.transaction.Transactional;
@@ -43,22 +45,25 @@ public class AuthService {
     private final AuthenticationManager authManager;
     private final JwtService jwtService;
     private final EmailVerificationService emailVerificationService;
-    private final EmailVerificationTokenRepository tokenRepository;
+    private final EmailVerificationTokenRepository emailVerificationTokenRepository;
     private final CustomUserDetailsService customUserDetailsService;
+    private final EmailNormalizer emailNormalizer;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
 
-    private static final int COOLDOWN_MINUTES = 5;
+    @Value("${app.security.resend-email-cooldown-minutes}")
+    private int cooldownMinutes;
 
     @Transactional
-    public RegisterResponseDTO registerUser(UserRegisterDTO userRegisterDTO) {
+    public RegisterResponseDTO registerUser(String email, String password, String name) {
 
-        String normalizedEmail = normalizeEmail(userRegisterDTO.getEmail());
+        String normalizedEmail = emailNormalizer.normalize(email);
 
         if (userRepository.existsByEmail(normalizedEmail)) {
-            throw new EmailAlreadyExistsException(userRegisterDTO.getEmail());
+            throw new EmailAlreadyExistsException(email);
         }
 
-        String encodedPassword = passwordEncoder.encode(userRegisterDTO.getPassword());
-        User user = Objects.requireNonNull(userMapper.toEntity(userRegisterDTO, encodedPassword, normalizedEmail));
+        String encodedPassword = passwordEncoder.encode(password);
+        User user = Objects.requireNonNull(userMapper.toEntity(name, encodedPassword, normalizedEmail));
 
         try {
             userRepository.save(user);
@@ -72,12 +77,12 @@ public class AuthService {
     }
 
     @Transactional
-    public JwtTokensDTO verifyUser(UserLoginDTO userLoginDTO) {
+    public JwtTokensDTO verifyUser(String email, String password) {
 
         Authentication authentication = authManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                        normalizeEmail(userLoginDTO.getEmail()),
-                        userLoginDTO.getPassword()));
+                        emailNormalizer.normalize(email),
+                        password));
 
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         User user = userPrincipal.getUser();
@@ -97,7 +102,7 @@ public class AuthService {
     @Transactional
     public void verifyEmail(String token) {
 
-        EmailVerificationToken verificationToken = tokenRepository.findByToken(token)
+        EmailVerificationToken verificationToken = emailVerificationTokenRepository.findByToken(token)
                 .orElseThrow(() -> new BadCredentialsException("Invalid token"));
 
         if (verificationToken.isUsed()) {
@@ -110,7 +115,7 @@ public class AuthService {
 
         User user = verificationToken.getUser();
         userRepository.updateVerified(user.getUserId(), true);
-        tokenRepository.updateUsed(verificationToken.getTokenId(), true);
+        emailVerificationTokenRepository.updateUsed(verificationToken.getTokenId(), true);
     }
 
     public LoginResponseDTO getRefreshAccessToken(String refreshToken) {
@@ -130,10 +135,10 @@ public class AuthService {
         return loginResponse;
     }
 
-    public void resendEmail(ResendEmailRequestDTO resendEmailRequestDTO) {
+    public void resendEmail(String email) {
 
-        String email = normalizeEmail(resendEmailRequestDTO.getEmail());
-        User user = userRepository.findByEmail(email)
+        String normalizedEmail = emailNormalizer.normalize(email);
+        User user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
 
         if (user.isVerified()) {
@@ -141,11 +146,11 @@ public class AuthService {
         }
 
         // Cooldown check
-        if (user.getLastVerificationEmailSent() != null &&
-                user.getLastVerificationEmailSent()
-                        .isAfter(java.time.LocalDateTime.now().minusMinutes(COOLDOWN_MINUTES))) {
-            long waitMinutes = COOLDOWN_MINUTES - java.time.Duration.between(
-                    user.getLastVerificationEmailSent(), java.time.LocalDateTime.now()).toMinutes();
+        LocalDateTime lastSent = user.getLastVerificationEmailSent();
+        if (lastSent != null &&
+                lastSent.isAfter(LocalDateTime.now().minusMinutes(cooldownMinutes))) {
+            long waitMinutes = cooldownMinutes - Duration.between(
+                    lastSent, LocalDateTime.now()).toMinutes();
             throw new ResendEmailCooldownException("Please wait " + waitMinutes + " minutes before requesting again");
         }
 
@@ -157,7 +162,37 @@ public class AuthService {
 
     }
 
-    private String normalizeEmail(String email) {
-        return email.trim().toLowerCase();
+    @Transactional
+    public void resetPassword(String token, String newPassword) {
+
+        PasswordResetToken resetToken = validateToken(token);
+        User user = resetToken.getUser();
+
+        // Update password
+        userRepository.updatePassword(
+                user.getUserId(),
+                passwordEncoder.encode(newPassword));
+
+        // Mark token as used
+        passwordResetTokenRepository.updateUsed(resetToken.getTokenId());
+
+        // Invalidate all other reset tokens
+        passwordResetTokenRepository.invalidateAllForUser(user.getUserId());
+    }
+
+    public PasswordResetToken validateToken(String token) {
+        PasswordResetToken resetToken = passwordResetTokenRepository
+                .findByToken(token)
+                .orElseThrow(() -> new BadCredentialsException("Invalid token"));
+
+        if (resetToken.isUsed()) {
+            throw new BadCredentialsException("Token already used");
+        }
+
+        if (resetToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new BadCredentialsException("Token expired");
+        }
+
+        return resetToken;
     }
 }

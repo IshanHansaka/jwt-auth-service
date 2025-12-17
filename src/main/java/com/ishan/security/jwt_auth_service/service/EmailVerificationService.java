@@ -19,11 +19,14 @@ import lombok.RequiredArgsConstructor;
 public class EmailVerificationService {
 
     private final EmailService emailService;
-    private final EmailVerificationTokenRepository tokenRepository;
+    private final EmailVerificationTokenRepository emailVerificationTokenRepository;
     private final UserRepository userRepository;
 
     @Value("${app.backend-url}")
     private String backendUrl;
+
+    @Value("${app.security.token.expiry-minutes}")
+    private int expiryMinutes;
 
     @Transactional
     public void sendVerificationEmail(User user) {
@@ -33,12 +36,12 @@ public class EmailVerificationService {
         EmailVerificationToken verificationToken = EmailVerificationToken.builder()
                 .token(token)
                 .user(user)
-                .expiresAt(LocalDateTime.now().plusMinutes(15))
+                .expiresAt(LocalDateTime.now().plusMinutes(expiryMinutes))
                 .used(false)
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        tokenRepository.save(verificationToken);
+        emailVerificationTokenRepository.save(verificationToken);
         String verificationUrl = backendUrl + "/api/v1/auth/verify-email?token=" + token;
 
         emailService.sendVerificationEmail(user.getEmail(), user.getName(), verificationUrl);

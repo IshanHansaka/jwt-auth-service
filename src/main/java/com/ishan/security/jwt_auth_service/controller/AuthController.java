@@ -2,6 +2,7 @@ package com.ishan.security.jwt_auth_service.controller;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Objects;
 
 import org.springframework.http.HttpHeaders;
@@ -17,15 +18,19 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.ishan.security.jwt_auth_service.dto.request.ForgotPasswordRequestDTO;
 import com.ishan.security.jwt_auth_service.dto.request.ResendEmailRequestDTO;
+import com.ishan.security.jwt_auth_service.dto.request.ResetPasswordRequestDTO;
 import com.ishan.security.jwt_auth_service.dto.response.ApiResponseDTO;
 import com.ishan.security.jwt_auth_service.dto.response.JwtTokensDTO;
 import com.ishan.security.jwt_auth_service.dto.response.LoginResponseDTO;
 import com.ishan.security.jwt_auth_service.dto.response.RegisterResponseDTO;
 import com.ishan.security.jwt_auth_service.dto.user.UserLoginDTO;
 import com.ishan.security.jwt_auth_service.dto.user.UserRegisterDTO;
+import com.ishan.security.jwt_auth_service.model.PasswordResetToken;
 import com.ishan.security.jwt_auth_service.service.AuthService;
 import com.ishan.security.jwt_auth_service.service.JwtService;
+import com.ishan.security.jwt_auth_service.service.PasswordResetService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -38,13 +43,15 @@ public class AuthController {
 
         private final AuthService authService;
         private final JwtService jwtService;
+        private final PasswordResetService passwordResetService;
 
         @PostMapping(value = "/register", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
         public ResponseEntity<ApiResponseDTO<RegisterResponseDTO>> registerUser(
                         @Valid @RequestBody UserRegisterDTO userRegisterDTO,
                         HttpServletRequest request) {
 
-                RegisterResponseDTO createdUser = authService.registerUser(userRegisterDTO);
+                RegisterResponseDTO createdUser = authService.registerUser(userRegisterDTO.getEmail(),
+                                userRegisterDTO.getPassword(), userRegisterDTO.getName());
                 ApiResponseDTO<RegisterResponseDTO> apiResponse = ApiResponseDTO.<RegisterResponseDTO>builder()
                                 .status("success")
                                 .message("User registered successfully! Please verify your email to activate your account.")
@@ -61,7 +68,7 @@ public class AuthController {
                         @Valid @RequestBody UserLoginDTO userLoginDTO,
                         HttpServletRequest request) {
 
-                JwtTokensDTO tokens = authService.verifyUser(userLoginDTO);
+                JwtTokensDTO tokens = authService.verifyUser(userLoginDTO.getEmail(), userLoginDTO.getPassword());
 
                 // HttpOnly refresh token cookie
                 ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", tokens.getRefreshToken())
@@ -127,7 +134,7 @@ public class AuthController {
 
                 ApiResponseDTO<LoginResponseDTO> apiResponse = ApiResponseDTO.<LoginResponseDTO>builder()
                                 .status("success")
-                                .message("Token refreshed successfully")
+                                .message("Access token refreshed successfully")
                                 .data(loginResponse)
                                 .timestamp(Instant.now())
                                 .path(request.getRequestURI())
@@ -180,7 +187,7 @@ public class AuthController {
                         @Valid @RequestBody ResendEmailRequestDTO resendEmailRequestDTO,
                         HttpServletRequest httpRequest) {
 
-                authService.resendEmail(resendEmailRequestDTO);
+                authService.resendEmail(resendEmailRequestDTO.getEmail());
 
                 ApiResponseDTO<Object> response = ApiResponseDTO.builder()
                                 .status("success")
@@ -191,5 +198,55 @@ public class AuthController {
                                 .build();
 
                 return ResponseEntity.ok(response);
+        }
+
+        @PostMapping("/forgot-password")
+        public ApiResponseDTO<Void> forgotPassword(
+                        @RequestBody @Valid ForgotPasswordRequestDTO forgotPasswordRequestDTO,
+                        HttpServletRequest httpRequest) {
+
+                passwordResetService.requestPasswordReset(forgotPasswordRequestDTO.getEmail());
+
+                return ApiResponseDTO.<Void>builder()
+                                .status("success")
+                                .message("If the email exists, a password reset link has been sent.")
+                                .path(httpRequest.getRequestURI())
+                                .data(null)
+                                .build();
+        }
+
+        @PostMapping("/reset-password")
+        public ApiResponseDTO<Void> resetPassword(
+                        @RequestBody @Valid ResetPasswordRequestDTO resetPasswordRequestDTO,
+                        HttpServletRequest httpRequest) {
+
+                authService.resetPassword(
+                                resetPasswordRequestDTO.getToken(),
+                                resetPasswordRequestDTO.getNewPassword());
+
+                return ApiResponseDTO.<Void>builder()
+                                .status("success")
+                                .message("Password reset successful. You can now log in.")
+                                .path(httpRequest.getRequestURI())
+                                .data(null)
+                                .build();
+        }
+
+        @GetMapping("/reset-password/validate")
+        public ApiResponseDTO<Map<String, Object>> validateToken(@RequestParam String token,
+                        HttpServletRequest httpRequest) {
+
+                PasswordResetToken resetToken = authService.validateToken(token);
+
+                Map<String, Object> data = Map.of(
+                                "expiresAt", resetToken.getExpiresAt(),
+                                "used", resetToken.isUsed());
+
+                return ApiResponseDTO.<Map<String, Object>>builder()
+                                .status("success")
+                                .message("Token is valid")
+                                .path(httpRequest.getRequestURI())
+                                .data(data)
+                                .build();
         }
 }

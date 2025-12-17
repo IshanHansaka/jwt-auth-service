@@ -63,4 +63,6 @@ public class User {
         @Column(name = "last_verification_email_sent")
         private LocalDateTime lastVerificationEmailSent;
 
+        @Column(name = "last_password_reset_email_sent")
+        private LocalDateTime lastPasswordResetEmailSent;
 }

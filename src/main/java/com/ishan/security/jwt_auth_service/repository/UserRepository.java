@@ -16,37 +16,55 @@ import jakarta.transaction.Transactional;
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
 
-    Optional<User> findByEmail(String email);
+        Optional<User> findByEmail(String email);
 
-    boolean existsByEmail(String email);
+        boolean existsByEmail(String email);
 
-    @Transactional
-    @Modifying
-    @Query("""
-                UPDATE User u
-                SET u.lastLogin = :lastLogin
-                WHERE u.userId = :userId
-            """)
-    void updateLastLogin(@Param("userId") Long userId,
-            @Param("lastLogin") LocalDateTime lastLogin);
+        @Transactional
+        @Modifying
+        @Query("""
+                            UPDATE User u
+                            SET u.lastLogin = :lastLogin
+                            WHERE u.userId = :userId
+                        """)
+        void updateLastLogin(@Param("userId") Long userId,
+                        @Param("lastLogin") LocalDateTime lastLogin);
 
-    @Transactional
-    @Modifying
-    @Query("""
-                UPDATE User u
-                SET u.verified = :verified
-                WHERE u.userId = :userId
-            """)
-    void updateVerified(@Param("userId") Long userId,
-            @Param("verified") boolean verified);
+        @Transactional
+        @Modifying
+        @Query("""
+                            UPDATE User u
+                            SET u.verified = :verified
+                            WHERE u.userId = :userId
+                        """)
+        void updateVerified(@Param("userId") Long userId,
+                        @Param("verified") boolean verified);
 
-    @Transactional
-    @Modifying
-    @Query("""
-                UPDATE User u
-                SET u.lastVerificationEmailSent = :lastVerificationEmailSent
-                WHERE u.userId = :userId
-            """)
-    void updateLastVerificationEmailSent(@Param("userId") Long userId,
-            @Param("lastVerificationEmailSent") LocalDateTime lastVerificationEmailSent);
+        @Transactional
+        @Modifying
+        @Query("""
+                            UPDATE User u
+                            SET u.lastVerificationEmailSent = :lastVerificationEmailSent
+                            WHERE u.userId = :userId
+                        """)
+        void updateLastVerificationEmailSent(@Param("userId") Long userId,
+                        @Param("lastVerificationEmailSent") LocalDateTime lastVerificationEmailSent);
+
+        @Transactional
+        @Modifying
+        @Query("""
+                            UPDATE User u
+                            SET u.lastPasswordResetEmailSent = :lastPasswordResetEmailSent
+                            WHERE u.userId = :userId
+                        """)
+        void updateLastPasswordResetEmailSent(@Param("userId") Long userId,
+                        @Param("lastPasswordResetEmailSent") LocalDateTime lastPasswordResetEmailSent);
+
+        @Modifying
+        @Query("""
+                        UPDATE User u
+                        SET u.password = :password
+                        WHERE u.userId = :userId
+                        """)
+        void updatePassword(Long userId, String password);
 }
