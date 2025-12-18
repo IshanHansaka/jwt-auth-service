@@ -70,7 +70,7 @@ public class AuthController {
 
                 JwtTokensDTO tokens = authService.verifyUser(userLoginDTO.getEmail(), userLoginDTO.getPassword());
 
-                // HttpOnly refresh token cookie
+                // HttpOnly refresh token cookie (scope to refresh endpoint)
                 ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", tokens.getRefreshToken())
                                 .httpOnly(true)
                                 .secure(true) // prod only
@@ -118,19 +118,31 @@ public class AuthController {
                         @CookieValue(name = "refreshToken", required = false) String refreshToken,
                         HttpServletRequest request) {
 
-                if (refreshToken == null || refreshToken.isEmpty()) {
+                if (refreshToken == null || refreshToken.isBlank()) {
                         ApiResponseDTO<LoginResponseDTO> response = ApiResponseDTO.<LoginResponseDTO>builder()
                                         .status("error")
-                                        .message("No active session found or already logged out")
+                                        .message("No refresh token found")
                                         .data(null)
                                         .timestamp(Instant.now())
                                         .path(request.getRequestURI())
                                         .build();
-
-                        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
                 }
 
-                LoginResponseDTO loginResponse = authService.getRefreshAccessToken(refreshToken);
+                JwtTokensDTO tokens = authService.getRefreshAccessToken(refreshToken);
+
+                // HttpOnly refresh token cookie
+                ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", tokens.getRefreshToken())
+                                .httpOnly(true)
+                                .secure(true) // prod only
+                                .path("/api/v1/auth/refresh")
+                                .maxAge(Objects.requireNonNull(
+                                                Duration.ofMillis(jwtService.getRefreshTokenDurationMs())))
+                                .sameSite("Strict") // unless cross-site auth needed
+                                .build();
+
+                LoginResponseDTO loginResponse = new LoginResponseDTO();
+                loginResponse.setAccessToken(tokens.getAccessToken());
 
                 ApiResponseDTO<LoginResponseDTO> apiResponse = ApiResponseDTO.<LoginResponseDTO>builder()
                                 .status("success")
@@ -140,7 +152,9 @@ public class AuthController {
                                 .path(request.getRequestURI())
                                 .build();
 
-                return ResponseEntity.ok(apiResponse);
+                return ResponseEntity.ok()
+                                .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+                                .body(apiResponse);
         }
 
         @PostMapping("/logout")
@@ -148,23 +162,15 @@ public class AuthController {
                         @CookieValue(name = "refreshToken", required = false) String refreshToken,
                         HttpServletRequest request) {
 
-                if (refreshToken == null || refreshToken.isEmpty()) {
-                        ApiResponseDTO<Object> response = ApiResponseDTO.builder()
-                                        .status("error")
-                                        .message("No active session found or already logged out")
-                                        .data(null)
-                                        .timestamp(Instant.now())
-                                        .path(request.getRequestURI())
-                                        .build();
-
-                        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+                if (refreshToken != null && !refreshToken.isBlank()) {
+                        authService.logout(refreshToken);
                 }
 
                 // Clear the refresh token cookie
                 ResponseCookie deleteCookie = ResponseCookie.from("refreshToken", "")
                                 .httpOnly(true)
                                 .secure(true)
-                                .path("/api/v1/auth/refresh")
+                                .path("/api/v1/auth/logout")
                                 .maxAge(0)
                                 .sameSite("Strict")
                                 .build();
