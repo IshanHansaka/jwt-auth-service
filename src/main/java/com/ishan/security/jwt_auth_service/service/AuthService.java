@@ -1,6 +1,5 @@
 package com.ishan.security.jwt_auth_service.service;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
@@ -19,8 +18,6 @@ import com.ishan.security.jwt_auth_service.dto.response.RegisterResponseDTO;
 import com.ishan.security.jwt_auth_service.exception.EmailAlreadyExistsException;
 import com.ishan.security.jwt_auth_service.exception.EmailNotVerifiedException;
 import com.ishan.security.jwt_auth_service.exception.InvalidRefreshTokenException;
-import com.ishan.security.jwt_auth_service.exception.ResendEmailCooldownException;
-import com.ishan.security.jwt_auth_service.exception.UserNotFoundException;
 import com.ishan.security.jwt_auth_service.model.EmailVerificationToken;
 import com.ishan.security.jwt_auth_service.model.PasswordResetToken;
 import com.ishan.security.jwt_auth_service.model.RefreshToken;
@@ -176,28 +173,24 @@ public class AuthService {
     public void resendEmail(String email) {
 
         String normalizedEmail = emailNormalizer.normalize(email);
-        User user = userRepository.findByEmail(normalizedEmail)
-                .orElseThrow(() -> new UserNotFoundException("User not found"));
 
-        if (user.isVerified()) {
-            throw new IllegalStateException("User is already verified");
-        }
+        userRepository.findByEmail(normalizedEmail).ifPresent(user -> {
+            if (user.isVerified()) {
+                // Do not reveal verification status
+                return;
+            }
 
-        // Cooldown check
-        LocalDateTime lastSent = user.getLastVerificationEmailSent();
-        if (lastSent != null &&
-                lastSent.isAfter(LocalDateTime.now().minusMinutes(cooldownMinutes))) {
-            long waitMinutes = cooldownMinutes - Duration.between(
-                    lastSent, LocalDateTime.now()).toMinutes();
-            throw new ResendEmailCooldownException("Please wait " + waitMinutes + " minutes before requesting again");
-        }
+            LocalDateTime lastSent = user.getLastVerificationEmailSent();
+            if (lastSent != null && lastSent.isAfter(LocalDateTime.now().minusMinutes(cooldownMinutes))) {
+                // Respect cooldown silently without throwing
+                return;
+            }
 
-        emailVerificationService.sendVerificationEmail(user);
+            emailVerificationService.sendVerificationEmail(user);
+            userRepository.updateLastVerificationEmailSent(user.getUserId(), LocalDateTime.now());
+        });
 
-        // Update last sent timestamp
-        user.setLastVerificationEmailSent(java.time.LocalDateTime.now());
-        userRepository.save(user);
-
+        // Intentionally always return silently to avoid email enumeration
     }
 
     @Transactional
