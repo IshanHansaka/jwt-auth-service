@@ -14,200 +14,212 @@ import com.ishan.security.jwt_auth_service.dto.response.ApiResponseDTO;
 
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
+import java.util.UUID;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
-    // Handle validation errors (@Valid)
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponseDTO<Object>> handleValidationException(
-            MethodArgumentNotValidException ex,
-            HttpServletRequest request) {
+        // Handle validation errors (@Valid)
+        @ExceptionHandler(MethodArgumentNotValidException.class)
+        public ResponseEntity<ApiResponseDTO<Object>> handleValidationException(
+                        MethodArgumentNotValidException ex,
+                        HttpServletRequest request) {
 
-        String errorMessages = ex.getBindingResult()
-                .getFieldErrors()
-                .stream()
-                .map(err -> err.getField() + ": " + err.getDefaultMessage())
-                .collect(Collectors.joining(", "));
+                String errorMessages = ex.getBindingResult()
+                                .getFieldErrors()
+                                .stream()
+                                .map(err -> err.getField() + ": " + err.getDefaultMessage())
+                                .collect(Collectors.joining(", "));
 
-        ApiResponseDTO<Object> response = ApiResponseDTO.builder()
-                .status("error")
-                .message(errorMessages)
-                .timestamp(Instant.now())
-                .path(request.getRequestURI())
-                .data(null)
-                .build();
+                ApiResponseDTO<Object> response = ApiResponseDTO.builder()
+                                .status("error")
+                                .message(errorMessages)
+                                .timestamp(Instant.now())
+                                .path(request.getRequestURI())
+                                .data(null)
+                                .build();
 
-        return ResponseEntity.badRequest().body(response);
-    }
+                return ResponseEntity.badRequest().body(response);
+        }
 
-    // Handle generic exceptions
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponseDTO<Object>> handleException(
-            Exception ex,
-            HttpServletRequest request) {
+        // Handle generic exceptions - avoid leaking internal details
+        @ExceptionHandler(Exception.class)
+        public ResponseEntity<ApiResponseDTO<Object>> handleException(
+                        Exception ex,
+                        HttpServletRequest request,
+                        HttpServletResponse responseHttp) {
 
-        ApiResponseDTO<Object> response = ApiResponseDTO.builder()
-                .status("error")
-                .message(ex.getMessage())
-                .timestamp(Instant.now())
-                .path(request.getRequestURI())
-                .data(null)
-                .build();
+                String correlationId = UUID.randomUUID().toString();
+                // Log full stack trace with correlation id for troubleshooting
+                log.error("Unhandled exception. correlationId={}", correlationId, ex);
 
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
-    }
+                // Include correlation id in response headers for client supportability
+                responseHttp.setHeader("X-Correlation-Id", correlationId);
 
-    // Handle email already exists exception
-    @ExceptionHandler(EmailAlreadyExistsException.class)
-    public ResponseEntity<ApiResponseDTO<Object>> handleEmailAlreadyExists(
-            EmailAlreadyExistsException ex,
-            HttpServletRequest request) {
+                ApiResponseDTO<Object> response = ApiResponseDTO.builder()
+                                .status("error")
+                                .message("Internal server error")
+                                .timestamp(Instant.now())
+                                .path(request.getRequestURI())
+                                .data(null)
+                                .build();
 
-        ApiResponseDTO<Object> response = ApiResponseDTO.builder()
-                .status("error")
-                .message(ex.getMessage())
-                .timestamp(Instant.now())
-                .path(request.getRequestURI())
-                .data(null)
-                .build();
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
 
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-    }
+        // Handle email already exists exception
+        @ExceptionHandler(EmailAlreadyExistsException.class)
+        public ResponseEntity<ApiResponseDTO<Object>> handleEmailAlreadyExists(
+                        EmailAlreadyExistsException ex,
+                        HttpServletRequest request) {
 
-    // Handle email not verify exception
-    @ExceptionHandler(EmailNotVerifiedException.class)
-    public ResponseEntity<ApiResponseDTO<Object>> handleEmailNotVerified(
-            EmailNotVerifiedException ex,
-            HttpServletRequest request) {
+                ApiResponseDTO<Object> response = ApiResponseDTO.builder()
+                                .status("error")
+                                .message(ex.getMessage())
+                                .timestamp(Instant.now())
+                                .path(request.getRequestURI())
+                                .data(null)
+                                .build();
 
-        ApiResponseDTO<Object> response = ApiResponseDTO.builder()
-                .status("error")
-                .message(ex.getMessage())
-                .timestamp(Instant.now())
-                .path(request.getRequestURI())
-                .data(null)
-                .build();
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
 
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-    }
+        // Handle email not verify exception
+        @ExceptionHandler(EmailNotVerifiedException.class)
+        public ResponseEntity<ApiResponseDTO<Object>> handleEmailNotVerified(
+                        EmailNotVerifiedException ex,
+                        HttpServletRequest request) {
 
-    // Handle bad credentials
-    @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ApiResponseDTO<Object>> handleBadCredentials(
-            BadCredentialsException ex,
-            HttpServletRequest request) {
+                ApiResponseDTO<Object> response = ApiResponseDTO.builder()
+                                .status("error")
+                                .message(ex.getMessage())
+                                .timestamp(Instant.now())
+                                .path(request.getRequestURI())
+                                .data(null)
+                                .build();
 
-        ApiResponseDTO<Object> response = ApiResponseDTO.builder()
-                .status("error")
-                .message(ex.getMessage())
-                .path(request.getRequestURI())
-                .timestamp(Instant.now())
-                .data(null)
-                .build();
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
 
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-    }
+        // Handle bad credentials
+        @ExceptionHandler(BadCredentialsException.class)
+        public ResponseEntity<ApiResponseDTO<Object>> handleBadCredentials(
+                        BadCredentialsException ex,
+                        HttpServletRequest request) {
 
-    // Handle Jwt invildations
-    @ExceptionHandler(JwtException.class)
-    public ResponseEntity<ApiResponseDTO<Object>> handleJwtException(
-        JwtException ex,
-        HttpServletRequest request) {
+                ApiResponseDTO<Object> response = ApiResponseDTO.builder()
+                                .status("error")
+                                .message(ex.getMessage())
+                                .path(request.getRequestURI())
+                                .timestamp(Instant.now())
+                                .data(null)
+                                .build();
 
-        ApiResponseDTO<Object> response = ApiResponseDTO.builder()
-                .status("error")
-                .message("Invalid or expired token")
-                .path(request.getRequestURI())
-                .timestamp(Instant.now())
-                .data(null)
-                .build();
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+        }
 
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-    }
+        // Handle Jwt invildations
+        @ExceptionHandler(JwtException.class)
+        public ResponseEntity<ApiResponseDTO<Object>> handleJwtException(
+                        JwtException ex,
+                        HttpServletRequest request) {
 
-    // Handle email not sending
-    @ExceptionHandler(EmailSendingException.class)
-    public ResponseEntity<ApiResponseDTO<Object>> handleEmailSending(
-            EmailSendingException ex,
-            HttpServletRequest request) {
+                ApiResponseDTO<Object> response = ApiResponseDTO.builder()
+                                .status("error")
+                                .message("Invalid or expired token")
+                                .path(request.getRequestURI())
+                                .timestamp(Instant.now())
+                                .data(null)
+                                .build();
 
-        ApiResponseDTO<Object> response = ApiResponseDTO.builder()
-                .status("error")
-                .message(ex.getMessage())
-                .timestamp(Instant.now())
-                .path(request.getRequestURI())
-                .data(null)
-                .build();
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+        }
 
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
-    }
+        // Handle email not sending
+        @ExceptionHandler(EmailSendingException.class)
+        public ResponseEntity<ApiResponseDTO<Object>> handleEmailSending(
+                        EmailSendingException ex,
+                        HttpServletRequest request) {
 
-    // Handle user not found exception
-    @ExceptionHandler(UserNotFoundException.class)
-    public ResponseEntity<ApiResponseDTO<Object>> handleUserNotFound(
-            UserNotFoundException ex,
-            HttpServletRequest request) {
+                ApiResponseDTO<Object> response = ApiResponseDTO.builder()
+                                .status("error")
+                                .message(ex.getMessage())
+                                .timestamp(Instant.now())
+                                .path(request.getRequestURI())
+                                .data(null)
+                                .build();
 
-        ApiResponseDTO<Object> response = ApiResponseDTO.builder()
-                .status("error")
-                .message(ex.getMessage())
-                .timestamp(Instant.now())
-                .path(request.getRequestURI())
-                .data(null)
-                .build();
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
 
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
-    }
+        // Handle user not found exception
+        @ExceptionHandler(UserNotFoundException.class)
+        public ResponseEntity<ApiResponseDTO<Object>> handleUserNotFound(
+                        UserNotFoundException ex,
+                        HttpServletRequest request) {
 
-    // Handle already verified user
-    @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<ApiResponseDTO<Object>> handleIllegalState(
-            IllegalStateException ex,
-            HttpServletRequest request) {
+                ApiResponseDTO<Object> response = ApiResponseDTO.builder()
+                                .status("error")
+                                .message(ex.getMessage())
+                                .timestamp(Instant.now())
+                                .path(request.getRequestURI())
+                                .data(null)
+                                .build();
 
-        ApiResponseDTO<Object> response = ApiResponseDTO.builder()
-                .status("error")
-                .message(ex.getMessage())
-                .timestamp(Instant.now())
-                .path(request.getRequestURI())
-                .data(null)
-                .build();
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+        }
 
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-    }
+        // Handle already verified user
+        @ExceptionHandler(IllegalStateException.class)
+        public ResponseEntity<ApiResponseDTO<Object>> handleIllegalState(
+                        IllegalStateException ex,
+                        HttpServletRequest request) {
 
-    // Cooldown exception
-    @ExceptionHandler(ResendEmailCooldownException.class)
-    public ResponseEntity<ApiResponseDTO<Object>> handleCooldown(
-            ResendEmailCooldownException ex,
-            HttpServletRequest request) {
+                ApiResponseDTO<Object> response = ApiResponseDTO.builder()
+                                .status("error")
+                                .message(ex.getMessage())
+                                .timestamp(Instant.now())
+                                .path(request.getRequestURI())
+                                .data(null)
+                                .build();
 
-        ApiResponseDTO<Object> response = ApiResponseDTO.builder()
-                .status("error")
-                .message(ex.getMessage())
-                .timestamp(java.time.Instant.now())
-                .path(request.getRequestURI())
-                .data(null)
-                .build();
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
 
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(response);
-    }
+        // Cooldown exception
+        @ExceptionHandler(ResendEmailCooldownException.class)
+        public ResponseEntity<ApiResponseDTO<Object>> handleCooldown(
+                        ResendEmailCooldownException ex,
+                        HttpServletRequest request) {
 
-    // Invalid refresh token exception
-    @ExceptionHandler(InvalidRefreshTokenException.class)
-    public ResponseEntity<ApiResponseDTO<Object>> handleInvalidRefreshToken(
-            InvalidRefreshTokenException ex,
-            HttpServletRequest request) {
+                ApiResponseDTO<Object> response = ApiResponseDTO.builder()
+                                .status("error")
+                                .message(ex.getMessage())
+                                .timestamp(java.time.Instant.now())
+                                .path(request.getRequestURI())
+                                .data(null)
+                                .build();
 
-        ApiResponseDTO<Object> response = ApiResponseDTO.builder()
-                .status("error")
-                .message(ex.getMessage())
-                .timestamp(java.time.Instant.now())
-                .path(request.getRequestURI())
-                .data(null)
-                .build();
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(response);
+        }
 
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-    }
+        // Invalid refresh token exception
+        @ExceptionHandler(InvalidRefreshTokenException.class)
+        public ResponseEntity<ApiResponseDTO<Object>> handleInvalidRefreshToken(
+                        InvalidRefreshTokenException ex,
+                        HttpServletRequest request) {
+
+                ApiResponseDTO<Object> response = ApiResponseDTO.builder()
+                                .status("error")
+                                .message(ex.getMessage())
+                                .timestamp(java.time.Instant.now())
+                                .path(request.getRequestURI())
+                                .data(null)
+                                .build();
+
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+        }
 }
