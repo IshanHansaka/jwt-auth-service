@@ -29,8 +29,11 @@ public class RefreshToken {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long tokenId;
 
-    @Column(nullable = false, unique = true, length = 500)
-    private String token;
+    @Column(nullable = false, unique = true, length = 100)
+    private String jti;
+
+    @Column(nullable = false, length = 64)
+    private String tokenHash;
 
     @ManyToOne(fetch = FetchType.LAZY)
     private User user;
@@ -40,6 +43,9 @@ public class RefreshToken {
 
     @Column(nullable = false)
     private boolean revoked;
+
+    @Column(length = 100)
+    private String rotatedFromJti;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;

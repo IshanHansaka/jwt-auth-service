@@ -12,7 +12,7 @@ import com.ishan.security.jwt_auth_service.model.RefreshToken;
 @Repository
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
 
-    Optional<RefreshToken> findByToken(String token);
+    Optional<RefreshToken> findByJti(String jti);
 
     @Modifying
     @Query("""

@@ -28,6 +28,7 @@ import com.ishan.security.jwt_auth_service.repository.PasswordResetTokenReposito
 import com.ishan.security.jwt_auth_service.repository.RefreshTokenRepository;
 import com.ishan.security.jwt_auth_service.repository.UserRepository;
 import com.ishan.security.jwt_auth_service.util.EmailNormalizer;
+import com.ishan.security.jwt_auth_service.util.TokenHashUtil;
 import com.ishan.security.jwt_auth_service.util.UserMapper;
 
 import jakarta.transaction.Transactional;
@@ -97,12 +98,17 @@ public class AuthService {
         String accessToken = jwtService.generateAccessToken(userPrincipal);
         String refreshToken = jwtService.generateRefreshToken(userPrincipal);
 
+        String jti = jwtService.extractJti(refreshToken);
+        String tokenHash = TokenHashUtil.sha256Hex(refreshToken);
+
         refreshTokenRepository.save(
                 RefreshToken.builder()
-                        .token(refreshToken)
+                        .jti(jti)
+                        .tokenHash(tokenHash)
                         .user(user)
                         .expiresAt(LocalDateTime.now().plusSeconds(refreshTokenDurationMs / 1000))
                         .revoked(false)
+                        .rotatedFromJti(null)
                         .createdAt(LocalDateTime.now())
                         .build());
 
@@ -131,43 +137,62 @@ public class AuthService {
     @Transactional
     public JwtTokensDTO getRefreshAccessToken(String refreshToken) {
 
-        RefreshToken storedToken = refreshTokenRepository.findByToken(refreshToken)
-                .orElseThrow(() -> new InvalidRefreshTokenException("Refresh token not found"));
+        String jti = jwtService.extractJti(refreshToken);
+        RefreshToken storedToken = refreshTokenRepository.findByJti(jti)
+                .orElseThrow(() -> new InvalidRefreshTokenException("Invalid refresh token"));
 
-        if (storedToken.isRevoked() || storedToken.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new InvalidRefreshTokenException("Refresh token revoked or expired");
+        if (storedToken.isRevoked()) {
+            refreshTokenRepository.revokeAllByUserId(storedToken.getUser().getUserId());
+            throw new InvalidRefreshTokenException("Refresh token has been revoked");
+        }
+
+        if (storedToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new InvalidRefreshTokenException("Refresh token expired");
+        }
+
+        // Verify token hash matches stored hash
+        String presentedHash = TokenHashUtil.sha256Hex(refreshToken);
+        if (!presentedHash.equals(storedToken.getTokenHash())) {
+            refreshTokenRepository.revokeAllByUserId(storedToken.getUser().getUserId());
+            throw new InvalidRefreshTokenException("Invalid refresh token payload");
         }
 
         User user = storedToken.getUser();
         UserDetails userDetails = new UserPrincipal(user);
 
-        // Rotate refresh token
+        // Validate JWT signature and claims
+        if (!jwtService.validateRefreshToken(refreshToken, userDetails)) {
+            throw new InvalidRefreshTokenException("Invalid or expired refresh token");
+        }
+
+        // Rotate refresh token: revoke old and create new
         storedToken.setRevoked(true);
 
         String newRefreshToken = jwtService.generateRefreshToken(userDetails);
+        String newJti = jwtService.extractJti(newRefreshToken);
+        String newHash = TokenHashUtil.sha256Hex(newRefreshToken);
+
         refreshTokenRepository.save(
                 RefreshToken.builder()
-                        .token(newRefreshToken)
+                        .jti(newJti)
+                        .tokenHash(newHash)
                         .user(user)
                         .expiresAt(LocalDateTime.now().plusSeconds(refreshTokenDurationMs / 1000))
                         .revoked(false)
+                        .rotatedFromJti(jti)
                         .createdAt(LocalDateTime.now())
                         .build());
 
         String newAccessToken = jwtService.generateAccessToken(userDetails);
 
-        JwtTokensDTO tokens = new JwtTokensDTO(newAccessToken, newRefreshToken);
-
-        return tokens;
+        return new JwtTokensDTO(newAccessToken, newRefreshToken);
     }
 
     @Transactional
     public void logout(String refreshToken) {
-        refreshTokenRepository.findByToken(refreshToken)
-                .ifPresent(token -> {
-                    Long userId = token.getUser().getUserId();
-                    refreshTokenRepository.revokeAllByUserId(userId);
-                });
+        String jti = jwtService.extractJti(refreshToken);
+        refreshTokenRepository.findByJti(jti)
+                .ifPresent(token -> refreshTokenRepository.revokeAllByUserId(token.getUser().getUserId()));
     }
 
     public void resendEmail(String email) {
@@ -209,6 +234,9 @@ public class AuthService {
 
         // Invalidate all other reset tokens
         passwordResetTokenRepository.invalidateAllForUser(user.getUserId());
+
+        // Revoke all refresh tokens for the user to force re-authentication
+        refreshTokenRepository.revokeAllByUserId(user.getUserId());
     }
 
     public PasswordResetToken validateToken(String token) {

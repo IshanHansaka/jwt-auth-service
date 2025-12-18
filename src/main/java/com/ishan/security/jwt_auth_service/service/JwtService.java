@@ -150,4 +150,8 @@ public class JwtService {
     public long getRefreshTokenDurationMs() {
         return refreshTokenDurationMs;
     }
+
+    public String extractJti(String token) throws JwtException {
+        return extractClaim(token, Claims::getId);
+    }
 }
